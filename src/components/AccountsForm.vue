@@ -20,10 +20,10 @@
         v-for="d in drafts"
         :key="d.id"
         :draft="d"
-        :errors="errors[d.id]"
         @patch="patch(d, $event)"
         @save="save(d)"
         @remove="remove(d)"
+        :errors="getErrors(d)"
       />
     </div>
   </div>
@@ -40,8 +40,7 @@ import type { Account } from '../types/account'
 const store = useAccountsStore()
 
 const drafts = reactive<AccountDraft[]>([])
-const errors = reactive<Record<string, AccountErrors>>({})
-const hasError = computed(() => drafts.some((d) => Object.keys(getErrors(d)).length))
+const hasError = computed(() => drafts.some((d) => !isValid(d)))
 
 onMounted(() => {
   store.init()
@@ -76,12 +75,11 @@ function remove(d: AccountDraft) {
   const i = drafts.indexOf(d)
   drafts.splice(i, 1)
   store.remove(i)
-  delete errors[d.id]
   if (!drafts.length) add()
 }
 
 function save(d: AccountDraft) {
-  if (!validate(d)) return
+  if (!isValid(d)) return
 
   store.set(drafts.indexOf(d), {
     type: d.type,
@@ -91,15 +89,8 @@ function save(d: AccountDraft) {
   })
 }
 
-function validate(d: AccountDraft) {
-  const e = getErrors(d)
-
-  if (Object.keys(e).length) {
-    errors[d.id] = e
-  } else {
-    delete errors[d.id]
-  }
-  return !errors[d.id]
+function isValid(d: AccountDraft) {
+  return !Object.keys(getErrors(d)).length
 }
 
 function getErrors(d: AccountDraft) {

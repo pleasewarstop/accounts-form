@@ -10,7 +10,11 @@
     @blur="emit('save')"
   />
 
-  <el-select placeholder="Тип" :model-value="draft.type" @update:model-value="updateType">
+  <el-select
+    placeholder="Тип"
+    :model-value="draft.type"
+    @update:model-value="emit('patch', { type: $event })"
+  >
     <el-option label="LDAP" value="LDAP" />
     <el-option label="Локальная" value="LOCAL" />
   </el-select>
@@ -19,10 +23,14 @@
     :model-value="draft.login"
     :maxlength="100"
     class="input"
-    :class="{ invalid: isInvalid('login'), 'ldap-login': draft.type === 'LDAP' }"
+    :class="{
+      invalid: isInvalid('login'),
+      'can-invalid-focused': canInvalidFocused.login,
+      'ldap-login': draft.type === 'LDAP',
+    }"
     ref="loginRef"
     @update:model-value="emit('patch', { login: $event })"
-    @blur="emit('save')"
+    @blur="onBlurWithValidation('login')"
   />
 
   <el-input
@@ -31,9 +39,12 @@
     :type="showPassword ? 'text' : 'password'"
     :maxlength="100"
     class="input"
-    :class="{ invalid: isInvalid('password') }"
+    :class="{
+      invalid: isInvalid('password'),
+      'can-invalid-focused': canInvalidFocused.password,
+    }"
     ref="passwordRef"
-    @blur="emit('save')"
+    @blur="onBlurWithValidation('password')"
     @update:model-value="emit('patch', { password: $event })"
   >
     <template #suffix>
@@ -62,7 +73,7 @@ export type AccountErrors = Partial<Record<keyof AccountDraft, boolean>>
 
 const props = defineProps<{
   draft: AccountDraft
-  errors?: AccountErrors
+  errors: AccountErrors
 }>()
 
 const emit = defineEmits<{
@@ -71,53 +82,73 @@ const emit = defineEmits<{
   (e: 'save'): void
 }>()
 
+const showPassword = ref(false)
+
 type InputRefValue = InstanceType<(typeof import('element-plus'))['ElInput']> | null
 const labelsRef = ref<InputRefValue>(null)
 const loginRef = ref<InputRefValue>(null)
 const passwordRef = ref<InputRefValue>(null)
 
-type FieldWithValidation = 'login' | 'password'
-const willFocus = ref<FieldWithValidation | null>(null)
+const fieldsWithValidation = ['login', 'password'] as const
 
-onMounted(async () => {
-  if (!props.draft.login) {
-    await nextTick()
-    loginRef.value?.focus()
-  }
+type FieldWithValidation = (typeof fieldsWithValidation)[number]
+const canInvalid = ref<Record<FieldWithValidation, boolean>>({
+  login: !props.errors.login,
+  password: !props.errors.password,
+})
+const canInvalidFocused = ref<Record<FieldWithValidation, boolean>>({
+  ...canInvalid.value,
+})
+
+onMounted(() => {
+  if (!props.draft.login) focusField(loginRef)
+})
+
+watch(
+  () => props.draft.type,
+  () => emit('save'),
+)
+
+fieldsWithValidation.forEach((field) => {
+  watch(
+    () => props.draft[field],
+    () => {
+      if (!props.errors[field]) {
+        canInvalid.value[field] = true
+        canInvalidFocused.value[field] = true
+      }
+    },
+  )
 })
 
 watch(
   () => props.draft.type,
   (type) => {
-    if (props.errors?.login) {
-      focusField('login', loginRef)
-    } else if (type === 'LOCAL' && !props.draft.password) {
-      focusField('password', passwordRef)
+    if (props.errors.login) {
+      focusField(loginRef)
+    } else if (type === 'LOCAL' && props.errors.password) {
+      canInvalidFocused.value.password = true
+      focusField(passwordRef)
     }
   },
 )
 
-async function focusField(field: FieldWithValidation, ref: { value: InputRefValue }) {
-  // с помощью willFocus предотвращаем мерцание красным при появлении поля "пароль"
-  willFocus.value = field
+useResizeObserver(labelsRef, () => labelsRef.value?.resizeTextarea?.())
 
-  await nextTick()
-  ref.value?.focus()
-
-  willFocus.value = null
+function onBlurWithValidation(field: FieldWithValidation) {
+  canInvalid.value[field] = true
+  canInvalidFocused.value[field] = true
+  if (field === 'login') canInvalid.value.password = true
+  emit('save')
 }
 
 function isInvalid(field: FieldWithValidation) {
-  return willFocus.value !== field && props.errors?.[field]
+  return canInvalid.value[field] && props.errors[field]
 }
 
-useResizeObserver(labelsRef, () => labelsRef.value?.resizeTextarea?.())
-
-const showPassword = ref(false)
-
-function updateType(type: AccountDraft['type']) {
-  emit('patch', { type })
-  emit('save')
+async function focusField(ref: { value: InputRefValue }) {
+  await nextTick()
+  ref.value?.focus()
 }
 </script>
 
@@ -130,8 +161,13 @@ function updateType(type: AccountDraft['type']) {
   font-family: 'Times';
 }
 
-.invalid :deep(.el-input__wrapper:not(.is-focus)) {
-  box-shadow: 0 0 0 1px #f56c6c inset;
+.invalid {
+  & :deep(.el-input__wrapper) {
+    box-shadow: 0 0 0 1px #f56c6c inset;
+  }
+  &:not(.can-invalid-focused) :deep(.el-input__wrapper.is-focus) {
+    box-shadow: 0 0 0 1px #409eff inset;
+  }
 }
 
 .ldap-login {
