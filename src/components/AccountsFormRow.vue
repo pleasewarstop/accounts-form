@@ -25,7 +25,6 @@
     class="input"
     :class="{
       invalid: isInvalid('login'),
-      'can-invalid-focused': canInvalidFocused.login,
       'ldap-login': draft.type === 'LDAP',
     }"
     ref="loginRef"
@@ -41,7 +40,6 @@
     class="input"
     :class="{
       invalid: isInvalid('password'),
-      'can-invalid-focused': canInvalidFocused.password,
     }"
     ref="passwordRef"
     @blur="onBlurWithValidation('password')"
@@ -89,15 +87,10 @@ const labelsRef = ref<InputRefValue>(null)
 const loginRef = ref<InputRefValue>(null)
 const passwordRef = ref<InputRefValue>(null)
 
-const fieldsWithValidation = ['login', 'password'] as const
-
-type FieldWithValidation = (typeof fieldsWithValidation)[number]
+type FieldWithValidation = 'login' | 'password'
 const canInvalid = ref<Record<FieldWithValidation, boolean>>({
   login: !props.errors.login,
   password: !props.errors.password,
-})
-const canInvalidFocused = ref<Record<FieldWithValidation, boolean>>({
-  ...canInvalid.value,
 })
 
 onMounted(() => {
@@ -109,25 +102,12 @@ watch(
   () => emit('save'),
 )
 
-fieldsWithValidation.forEach((field) => {
-  watch(
-    () => props.draft[field],
-    () => {
-      if (!props.errors[field]) {
-        canInvalid.value[field] = true
-        canInvalidFocused.value[field] = true
-      }
-    },
-  )
-})
-
 watch(
   () => props.draft.type,
   (type) => {
     if (props.errors.login) {
       focusField(loginRef)
     } else if (type === 'LOCAL' && props.errors.password) {
-      canInvalidFocused.value.password = true
       focusField(passwordRef)
     }
   },
@@ -137,7 +117,6 @@ useResizeObserver(labelsRef, () => labelsRef.value?.resizeTextarea?.())
 
 function onBlurWithValidation(field: FieldWithValidation) {
   canInvalid.value[field] = true
-  canInvalidFocused.value[field] = true
   if (field === 'login') canInvalid.value.password = true
   emit('save')
 }
@@ -161,13 +140,8 @@ async function focusField(ref: { value: InputRefValue }) {
   font-family: 'Times';
 }
 
-.invalid {
-  & :deep(.el-input__wrapper) {
-    box-shadow: 0 0 0 1px #f56c6c inset;
-  }
-  &:not(.can-invalid-focused) :deep(.el-input__wrapper.is-focus) {
-    box-shadow: 0 0 0 1px #409eff inset;
-  }
+.invalid :deep(.el-input__wrapper) {
+  box-shadow: 0 0 0 1px #f56c6c inset;
 }
 
 .ldap-login {
