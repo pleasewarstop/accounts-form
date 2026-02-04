@@ -76,7 +76,8 @@ const labelsRef = ref<InputRefValue>(null)
 const loginRef = ref<InputRefValue>(null)
 const passwordRef = ref<InputRefValue>(null)
 
-const willFocus = ref<'login' | 'password' | null>(null)
+type FieldWithValidation = 'login' | 'password'
+const willFocus = ref<FieldWithValidation | null>(null)
 
 onMounted(async () => {
   if (!props.draft.login) {
@@ -96,7 +97,7 @@ watch(
   },
 )
 
-async function focusField(field: 'login' | 'password', ref: { value: InputRefValue }) {
+async function focusField(field: FieldWithValidation, ref: { value: InputRefValue }) {
   // с помощью willFocus предотвращаем мерцание красным при появлении поля "пароль"
   willFocus.value = field
 
@@ -106,7 +107,7 @@ async function focusField(field: 'login' | 'password', ref: { value: InputRefVal
   willFocus.value = null
 }
 
-function isInvalid(field: 'login' | 'password') {
+function isInvalid(field: FieldWithValidation) {
   return willFocus.value !== field && props.errors?.[field]
 }
 
