@@ -1,14 +1,17 @@
 <template>
-  <el-input
-    type="textarea"
-    :model-value="draft.labels"
-    class="textarea"
-    :maxlength="50"
-    ref="labelsRef"
-    autosize
-    @update:model-value="emit('patch', { labels: $event })"
-    @blur="emit('save')"
-  />
+  <div class="relative">
+    <div v-if="hasError" class="unsaved" title="Не сохранено" @click="focusFirstInvalidField" />
+    <el-input
+      type="textarea"
+      :model-value="draft.labels"
+      class="textarea"
+      :maxlength="50"
+      ref="labelsRef"
+      autosize
+      @update:model-value="emit('patch', { labels: $event })"
+      @blur="emit('save')"
+    />
+  </div>
 
   <el-select
     placeholder="Тип"
@@ -58,7 +61,7 @@
 <script setup lang="ts">
 import { Delete } from '@element-plus/icons-vue'
 import type { Account } from '@/types/account'
-import { nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useResizeObserver } from '../hooks/useResizeObserver'
 import { View, Hide } from '@element-plus/icons-vue'
 
@@ -81,17 +84,24 @@ const emit = defineEmits<{
 }>()
 
 const showPassword = ref(false)
+const hasError = computed(() => Object.keys(props.errors).length)
 
 type InputRefValue = InstanceType<(typeof import('element-plus'))['ElInput']> | null
 const labelsRef = ref<InputRefValue>(null)
 const loginRef = ref<InputRefValue>(null)
 const passwordRef = ref<InputRefValue>(null)
 
-type FieldWithValidation = 'login' | 'password'
+const fieldsWithValidation = ['login', 'password'] as const
+type FieldWithValidation = (typeof fieldsWithValidation)[number]
+
 const canInvalid = ref<Record<FieldWithValidation, boolean>>({
   login: !props.errors.login,
-  password: !props.errors.password,
+  password: !!props.draft.password,
 })
+const fieldsWithValidationRefs = {
+  login: loginRef,
+  password: passwordRef,
+}
 
 onMounted(() => {
   if (!props.draft.login) focusField(loginRef)
@@ -105,6 +115,9 @@ watch(
 watch(
   () => props.draft.type,
   (type) => {
+    if (type === 'LDAP') {
+      canInvalid.value.password = !!props.draft.password
+    }
     if (props.errors.login) {
       focusField(loginRef)
     } else if (type === 'LOCAL' && props.errors.password) {
@@ -117,12 +130,18 @@ useResizeObserver(labelsRef, () => labelsRef.value?.resizeTextarea?.())
 
 function onBlurWithValidation(field: FieldWithValidation) {
   canInvalid.value[field] = true
-  if (field === 'login') canInvalid.value.password = true
   emit('save')
 }
 
 function isInvalid(field: FieldWithValidation) {
   return canInvalid.value[field] && props.errors[field]
+}
+
+function focusFirstInvalidField() {
+  const field = fieldsWithValidation.find((x) => props.errors[x])
+  if (!field) return
+  const ref = fieldsWithValidationRefs[field]
+  ref.value?.focus()
 }
 
 async function focusField(ref: { value: InputRefValue }) {
@@ -132,6 +151,34 @@ async function focusField(ref: { value: InputRefValue }) {
 </script>
 
 <style scoped>
+.relative {
+  position: relative;
+}
+
+.unsaved {
+  position: absolute;
+  left: -14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background-color: var(--el-color-error);
+  opacity: 0.7;
+  cursor: pointer;
+  &:hover {
+    opacity: 1;
+  }
+  &::before {
+    content: '';
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    left: -5px;
+    top: -5px;
+  }
+}
+
 .textarea :deep(.el-textarea__inner) {
   resize: none;
 }

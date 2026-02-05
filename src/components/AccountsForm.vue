@@ -5,7 +5,7 @@
       <el-button class="add" square type="default" @click="add" :disabled="hasError">+</el-button>
     </div>
 
-    <el-alert type="info" show-icon :closable="false" class="hint">
+    <el-alert class="hint" type="info" show-icon :closable="false">
       Для указания нескольких меток для одной пары логин/пароль используйте разделитель ;
     </el-alert>
 
@@ -20,10 +20,10 @@
         v-for="d in drafts"
         :key="d.id"
         :draft="d"
+        :errors="getErrors(d)"
         @patch="patch(d, $event)"
         @save="save(d)"
         @remove="remove(d)"
-        :errors="getErrors(d)"
       />
     </div>
   </div>
@@ -134,6 +134,7 @@ function labelsToArray(labels: string) {
   grid-template-columns: 2fr 1fr 2fr 2fr auto;
   gap: 12px;
   margin-bottom: 12px;
+  align-items: start;
 }
 
 .head-cell {
