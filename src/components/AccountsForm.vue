@@ -17,9 +17,10 @@
       <div class="head-cell"></div>
 
       <AccountsFormRow
-        v-for="d in drafts"
+        v-for="(d, i) in drafts"
         :key="d.id"
         :draft="d"
+        :account="store.accounts[i]"
         :errors="getErrors(d)"
         @patch="patch(d, $event)"
         @save="save(d)"
@@ -35,7 +36,7 @@ import { nanoid } from 'nanoid'
 import { useAccountsStore } from '@/stores/accounts'
 import AccountsFormRow from './AccountsFormRow.vue'
 import type { AccountDraft, AccountErrors } from './AccountsFormRow.vue'
-import type { Account } from '../types/account'
+import { labelsToArray } from '../util/account'
 
 const store = useAccountsStore()
 
@@ -98,17 +99,6 @@ function getErrors(d: AccountDraft) {
   if (!d.login) e.login = true
   if (d.type === 'LOCAL' && !d.password) e.password = true
   return e
-}
-
-function labelsToArray(labels: string) {
-  const obj: Record<string, Account['labels'][number]> = {}
-  const splitted = labels
-    .split(';')
-    .map((l) => l.trim())
-    .filter(Boolean)
-
-  for (const text of splitted) obj[text] = { text }
-  return Object.values(obj)
 }
 </script>
 

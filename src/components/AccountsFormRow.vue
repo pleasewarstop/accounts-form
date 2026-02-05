@@ -1,6 +1,6 @@
 <template>
   <div class="relative">
-    <div v-if="hasError" class="unsaved" title="Не сохранено" @click="focusFirstInvalidField" />
+    <div v-if="isUnsaved" class="unsaved" title="Не сохранено" @click="focusFirstInvalidField" />
     <el-input
       type="textarea"
       :model-value="draft.labels"
@@ -64,6 +64,7 @@ import type { Account } from '@/types/account'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useResizeObserver } from '../hooks/useResizeObserver'
 import { View, Hide } from '@element-plus/icons-vue'
+import { labelsToArray } from '../util/account'
 
 export type AccountDraft = Omit<Account, 'labels'> & {
   id: string
@@ -74,6 +75,7 @@ export type AccountErrors = Partial<Record<keyof AccountDraft, boolean>>
 
 const props = defineProps<{
   draft: AccountDraft
+  account: Account | undefined
   errors: AccountErrors
 }>()
 
@@ -84,7 +86,28 @@ const emit = defineEmits<{
 }>()
 
 const showPassword = ref(false)
-const hasError = computed(() => Object.keys(props.errors).length)
+const isUnsaved = computed(() => {
+  const { account, draft } = props
+  if (!account) return true
+
+  for (const keySt in account) {
+    const key = keySt as keyof Account
+
+    if (key === 'labels') {
+      const labels = labelsToArray(draft[key])
+      if (labels.length !== account.labels.length) return true
+
+      labels.forEach(({ text }, i) => {
+        if (text !== account.labels[i]?.text) return true
+      })
+    } else if (key === 'password') {
+      if (draft.type === 'LOCAL' && draft[key] !== account[key]) {
+        return true
+      }
+    } else if (draft[key] !== account[key]) return true
+  }
+  return false
+})
 
 type InputRefValue = InstanceType<(typeof import('element-plus'))['ElInput']> | null
 const labelsRef = ref<InputRefValue>(null)
@@ -163,8 +186,8 @@ async function focusField(ref: { value: InputRefValue }) {
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background-color: var(--el-color-error);
-  opacity: 0.7;
+  opacity: 0.6;
+  background-color: #909399;
   cursor: pointer;
   &:hover {
     opacity: 1;
