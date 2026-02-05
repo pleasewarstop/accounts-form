@@ -119,7 +119,7 @@ type FieldWithValidation = (typeof fieldsWithValidation)[number]
 
 const canInvalid = ref<Record<FieldWithValidation, boolean>>({
   login: !props.errors.login,
-  password: !!props.draft.password,
+  password: !props.errors.password,
 })
 const fieldsWithValidationRefs = {
   login: loginRef,
@@ -138,7 +138,7 @@ watch(
 watch(
   () => props.draft.type,
   (type) => {
-    if (type === 'LDAP') {
+    if (type === 'LOCAL') {
       canInvalid.value.password = !!props.draft.password
     }
     if (props.errors.login) {
