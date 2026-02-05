@@ -1,6 +1,12 @@
 <template>
   <div class="relative">
-    <div v-if="isUnsaved" class="unsaved" title="Не сохранено" @click="focusFirstInvalidField" />
+    <div
+      v-if="hasChanges"
+      class="unsaved"
+      :class="{ interacted: canInteractUnsaved }"
+      title="Не сохранено"
+      @click="onClickUnsaved"
+    />
     <el-input
       type="textarea"
       :model-value="draft.labels"
@@ -32,6 +38,7 @@
     }"
     ref="loginRef"
     @update:model-value="emit('patch', { login: $event })"
+    @focus="onFocusWithValidation('login')"
     @blur="onBlurWithValidation('login')"
   />
 
@@ -45,8 +52,9 @@
       invalid: isInvalid('password'),
     }"
     ref="passwordRef"
-    @blur="onBlurWithValidation('password')"
     @update:model-value="emit('patch', { password: $event })"
+    @focus="onFocusWithValidation('password')"
+    @blur="onBlurWithValidation('password')"
   >
     <template #suffix>
       <el-icon @click="showPassword = !showPassword" class="icon">
@@ -86,7 +94,8 @@ const emit = defineEmits<{
 }>()
 
 const showPassword = ref(false)
-const isUnsaved = computed(() => {
+
+const hasChanges = computed(() => {
   const { account, draft } = props
   if (!account) return true
 
@@ -97,9 +106,9 @@ const isUnsaved = computed(() => {
       const labels = labelsToArray(draft[key])
       if (labels.length !== account.labels.length) return true
 
-      labels.forEach(({ text }, i) => {
-        if (text !== account.labels[i]?.text) return true
-      })
+      for (let i = 0; i < labels.length; i++) {
+        if (labels[i]?.text !== account.labels[i]?.text) return true
+      }
     } else if (key === 'password') {
       if (draft.type === 'LOCAL' && draft[key] !== account[key]) {
         return true
@@ -107,6 +116,12 @@ const isUnsaved = computed(() => {
     } else if (draft[key] !== account[key]) return true
   }
   return false
+})
+
+const canInteractUnsaved = computed(() => {
+  return fieldsWithValidation.some(
+    (field) => props.errors[field] && !canInvalid.value[field] && !isFocused.value[field],
+  )
 })
 
 type InputRefValue = InstanceType<(typeof import('element-plus'))['ElInput']> | null
@@ -125,9 +140,13 @@ const fieldsWithValidationRefs = {
   login: loginRef,
   password: passwordRef,
 }
+const isFocused = ref<Record<FieldWithValidation, boolean>>({
+  login: false,
+  password: false,
+})
 
 onMounted(() => {
-  if (!props.draft.login) focusField(loginRef)
+  if (!props.draft.login) nextTickFocus(loginRef)
 })
 
 watch(
@@ -142,17 +161,30 @@ watch(
       canInvalid.value.password = !!props.draft.password
     }
     if (props.errors.login) {
-      focusField(loginRef)
+      nextTickFocus(loginRef)
     } else if (type === 'LOCAL' && props.errors.password) {
-      focusField(passwordRef)
+      nextTickFocus(passwordRef)
     }
   },
 )
 
 useResizeObserver(labelsRef, () => labelsRef.value?.resizeTextarea?.())
 
+function onClickUnsaved() {
+  const field = fieldsWithValidation.find((x) => props.errors[x])
+  if (!field || !canInteractUnsaved.value) return
+
+  const ref = fieldsWithValidationRefs[field]
+  ref.value?.focus()
+}
+
+function onFocusWithValidation(field: FieldWithValidation) {
+  isFocused.value[field] = true
+}
+
 function onBlurWithValidation(field: FieldWithValidation) {
   canInvalid.value[field] = true
+  isFocused.value[field] = false
   emit('save')
 }
 
@@ -160,14 +192,7 @@ function isInvalid(field: FieldWithValidation) {
   return canInvalid.value[field] && props.errors[field]
 }
 
-function focusFirstInvalidField() {
-  const field = fieldsWithValidation.find((x) => props.errors[x])
-  if (!field) return
-  const ref = fieldsWithValidationRefs[field]
-  ref.value?.focus()
-}
-
-async function focusField(ref: { value: InputRefValue }) {
+async function nextTickFocus(ref: { value: InputRefValue }) {
   await nextTick()
   ref.value?.focus()
 }
@@ -188,9 +213,11 @@ async function focusField(ref: { value: InputRefValue }) {
   border-radius: 50%;
   opacity: 0.6;
   background-color: #909399;
-  cursor: pointer;
-  &:hover {
-    opacity: 1;
+  &.interacted {
+    cursor: pointer;
+    &:hover {
+      opacity: 1;
+    }
   }
   &::before {
     content: '';
